@@ -206,7 +206,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Images
+# Images and models
 training_data/**/*.jpg
 training_data/**/*.jpeg
 training_data/**/*.png
@@ -221,3 +221,6 @@ models/**/*.gif
 models/**/*.bmp
 models/**/*.tiff
 models/**/*.webp
+models/**/*.npy
+models/**/*.npz
+models/**/*.json
