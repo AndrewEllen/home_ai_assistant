@@ -205,6 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Images
 training_data/**/*.jpg
 training_data/**/*.jpeg
 training_data/**/*.png
@@ -212,4 +214,10 @@ training_data/**/*.gif
 training_data/**/*.bmp
 training_data/**/*.tiff
 training_data/**/*.webp
-
+models/**/*.jpg
+models/**/*.jpeg
+models/**/*.png
+models/**/*.gif
+models/**/*.bmp
+models/**/*.tiff
+models/**/*.webp
