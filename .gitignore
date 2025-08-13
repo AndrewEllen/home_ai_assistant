@@ -214,6 +214,9 @@ training_data/**/*.gif
 training_data/**/*.bmp
 training_data/**/*.tiff
 training_data/**/*.webp
+training_data/**/*.mp4
+training_data/**/*.webm
+training_data/**/*.mvk
 models/**/*.jpg
 models/**/*.jpeg
 models/**/*.png
