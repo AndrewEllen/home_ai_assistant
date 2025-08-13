@@ -7,7 +7,7 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 
 
-# Train face
+# Adding and Training face data
 
 Place training data inside training_data with the following folder structure:
 
@@ -23,8 +23,17 @@ training_data
     ├── {picture3}.png
     └── ...
 
+First run:
+
+python .\tools\data_cleaner.py
+
+This cleans the training data turning video files frames into images and removing the original video file.
+
+Then run:
+
 python .\tools\train_face_recognition.py {persons_name}
 
+This trains the model on that persons face. It will be trained off the most common face in the training data.
 
 # Testing
 
