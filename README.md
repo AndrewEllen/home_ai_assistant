@@ -24,3 +24,8 @@ training_data
     └── ...
 
 python .\tools\train_face_recognition.py {persons_name}
+
+
+# Testing
+
+python .\tools\test_training_model.py {persons_name}
