@@ -38,3 +38,8 @@ This trains the model on that persons face. It will be trained off the most comm
 # Testing
 
 python .\tools\test_training_model.py {persons_name}
+
+
+# Running the main script
+
+python .\src\main.py

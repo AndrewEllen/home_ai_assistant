@@ -1,5 +1,11 @@
 import os, sys, json, time
 from pathlib import Path
+
+# NVIDIA DLLs from venv (Windows)
+_nv = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
+_bins = ["cudnn/bin","cublas/bin","cusolver/bin","cusparse/bin","cuda_runtime/bin","cuda_nvrtc/bin"]
+os.environ["PATH"] = ";".join(str(_nv / s) for s in _bins if (_nv / s).exists()) + ";" + os.environ["PATH"]
+
 import threading
 
 import numpy as np
@@ -8,8 +14,8 @@ import onnxruntime as ort
 from insightface.app import FaceAnalysis
 from insightface.utils import face_align
 
-BASE = Path(__file__).resolve().parents[0]
-MODELS = BASE / "models"
+BASE = Path(__file__).resolve().parents[3]
+MODELS = Path(__file__).resolve().parents[3] / "models"
 
 def load_people():
     people = {}
