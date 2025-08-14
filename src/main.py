@@ -4,10 +4,14 @@ from modules.smart_devices import *
 from modules.voice_recognition import start_voice_commands
 import sounddevice as sd
 from sounddevice import PortAudioError
+from modules.smart_devices.interpret_smart_command import execute_command
 
 
 def on_voice_command(text: str):
-    print("VOICE:", text)
+    print("\nVOICE:", text)
+    result = execute_command(text)
+    if result:
+        print(result)
 
 
 def main():
@@ -31,15 +35,14 @@ def main():
         model_name="large-v3"  # change to medium.en if you want faster but slightly less accurate
     )
 
-    # face_thread = start_face_recognition(recognized_faces)
-    # start_console_command_listener()
+    face_thread = start_face_recognition(recognized_faces)
+    start_console_command_listener()
 
     print("AI Assistant started. Waiting for recognitions...")
 
     try:
         while True:
             process_recognitions(recognized_faces)
-            # process_voice_commands(recognized_commands, listener=voice_thread, handler=on_voice_command)
             time.sleep(0.1)
     except KeyboardInterrupt:
         print("Stopping...")
@@ -47,8 +50,8 @@ def main():
         print("Stopped")
         voice_thread.stop()
         voice_thread.join()
-        # face_thread.stop()
-        # face_thread.join()
+        face_thread.stop()
+        face_thread.join()
 
 
 if __name__ == "__main__":

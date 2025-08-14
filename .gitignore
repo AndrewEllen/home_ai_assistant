@@ -227,7 +227,7 @@ models/**/*.webp
 models/**/*.npy
 models/**/*.npz
 models/**/*.json
-temp_audio/tts.wav
+temp_audio/*.wav
 
 # tuya
 devices.json

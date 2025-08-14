@@ -79,7 +79,7 @@ class VoiceCommandThread(threading.Thread):
         if not self.pcm_chunks:
             return
         pcm16 = np.concatenate(self.pcm_chunks)
-        tmp = "voice_temp.wav"
+        tmp = "temp_audio/voice_temp.wav"
         with wave.open(tmp, "wb") as w:
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(self.sample_rate)
             w.writeframes(pcm16.tobytes())
