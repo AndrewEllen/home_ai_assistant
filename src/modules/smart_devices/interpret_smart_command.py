@@ -49,7 +49,7 @@ _TOGGLE_WORDS = {"toggle", "switch"}
 _STATUS = {"status", "state", "is it", "what is", "what's"}
 _ALL_WORDS = {"all", "everything"}
 _ROOM_HINTS = {"room", "bedroom", "kitchen", "office", "hall", "hallway", "living", "lounge", "bathroom"}
-_COLOR_WORDS = {"red","green","blue","yellow","purple","pink","orange","cyan","magenta","turquoise","white","warm","cool","neutral","daylight"}
+_COLOR_WORDS = {"red","green","blue","yellow","purple","pink","orange","cyan","magenta","turquoise","white","warm","cool","cold","neutral","daylight"}
 _GENERIC_TOKENS = {"light", "lights", "lamp"}
 _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")
 
@@ -161,7 +161,7 @@ def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
         return "on", None, _extract_targets(t)
 
     # presets to map into color handler
-    for preset in ("white", "warm", "cool", "neutral", "daylight"):
+    for preset in ("white", "warm", "cool", "cold", "neutral", "daylight"):
         if _contains_word(t, preset):
             return "color", preset, _extract_targets(t)
 

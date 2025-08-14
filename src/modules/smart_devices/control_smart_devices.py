@@ -120,7 +120,7 @@ def light_color(name_or_id: str, color: Any):
     white_presets = {
         "white": 50, "warm": 15, "warm white": 20,
         "soft white": 30, "neutral": 50,
-        "cool": 80, "cool white": 85, "cold": 90
+        "cool": 80, "cool white": 85, "cold": 100
     }
 
     if isinstance(color, str) and color.strip().lower() in white_presets:
