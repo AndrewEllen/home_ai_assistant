@@ -5,13 +5,24 @@ from modules.voice_recognition import start_voice_commands
 import sounddevice as sd
 from sounddevice import PortAudioError
 from modules.smart_devices.interpret_smart_command import execute_command
+import re
+from modules.smart_devices.interpret_smart_command import execute_command
 
+WAKE_PHRASE = "hey sharon"
 
 def on_voice_command(text: str):
-    print("\nVOICE:", text)
-    result = execute_command(text)
-    if result:
-        print(result)
+    cleaned = re.sub(r"[^\w\s]", "", text).lower()
+    idx = cleaned.find(WAKE_PHRASE)
+    if idx != -1:
+        cmd = cleaned[idx + len(WAKE_PHRASE):].strip()
+        if cmd:
+            print("\nVOICE:", text)
+            result = execute_command(cmd)
+            if result:
+                print(result)
+    else:
+        # Wake phrase not present, ignore
+        pass
 
 
 def main():
