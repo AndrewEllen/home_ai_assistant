@@ -118,9 +118,31 @@ def light_color(name_or_id: str, color: Any):
     light_on(name_or_id)
 
     white_presets = {
-        "white": 50, "warm": 15, "warm white": 20,
-        "soft white": 30, "neutral": 50,
-        "cool": 80, "cool white": 85, "cold": 100
+        "white": 50,
+        "warm": 15,
+        "warm white": 20,
+        "soft white": 30,
+        "neutral": 50,
+        "cool": 80,
+        "cool white": 85,
+        "cold": 100,
+        "candlelight": 0,
+        "candle light": 0,
+        "candle": 0,
+        "daylight": 0,
+        "day light": 0,
+        "day": 0,
+        "ivory": 100,
+        "ivory white": 100,
+        "amber": 10,
+        "gold": 12,
+        "sunset": 8,
+        "sunrise": 12,
+        "halogen": 25,
+        "natural": 55,
+        "pure white": 60,
+        "bright white": 70,
+        "arctic white": 95,
     }
 
     if isinstance(color, str) and color.strip().lower() in white_presets:
@@ -152,11 +174,119 @@ def _set_white_temp(dev: Dict[str, Any], bulb: tinytuya.BulbDevice, pct: int):
 
 def _parse_color_input(c: Any) -> Tuple[int, int, int]:
     named = {
-        "red": (255, 0, 0), "green": (0, 255, 0), "blue": (0, 0, 255),
-        "yellow": (255, 255, 0), "purple": (128, 0, 128),
-        "pink": (255, 105, 180), "orange": (255, 165, 0),
-        "cyan": (0, 255, 255), "magenta": (255, 0, 255), "turquoise": (64, 224, 208)
+        # Base
+        "red": (255, 0, 0),
+        "green": (0, 255, 0),
+        "blue": (0, 0, 255),
+        "yellow": (255, 255, 0),
+        "purple": (128, 0, 128),
+        "pink": (255, 105, 180),
+        "orange": (255, 165, 0),
+        "cyan": (0, 255, 255),
+        "magenta": (255, 0, 255),
+        "turquoise": (64, 224, 208),
+
+        # Extended basics
+        "lime": (191, 255, 0),
+        "teal": (0, 128, 128),
+        "violet": (238, 130, 238),
+        "indigo": (75, 0, 130),
+        "maroon": (128, 0, 0),
+        "navy": (0, 0, 128),
+        "olive": (128, 128, 0),
+        "aqua": (0, 255, 255),
+        "coral": (255, 127, 80),
+        "crimson": (220, 20, 60),
+        "lavender": (230, 230, 250),
+        "mint": (189, 252, 201),
+        "peach": (255, 218, 185),
+        "plum": (221, 160, 221),
+        "rose": (255, 228, 225),
+        "salmon": (250, 128, 114),
+        "scarlet": (255, 36, 0),
+        "tan": (210, 180, 140),
+        "beige": (245, 245, 220),
+        "burgundy": (128, 0, 32),
+        "emerald": (80, 200, 120),
+        "gold": (255, 215, 0),
+        "silver": (192, 192, 192),
+        "bronze": (205, 127, 50),
+        "charcoal": (54, 69, 79),
+        "chocolate": (210, 105, 30),
+        "brown": (165, 42, 42),
+        "black": (0, 0, 0),
+        "white": (255, 255, 255),
+        "gray": (128, 128, 128),
+        "grey": (128, 128, 128),
+
+        # Pastels
+        "baby blue": (137, 207, 240),
+        "baby pink": (244, 194, 194),
+        "powder blue": (176, 224, 230),
+        "mint green": (152, 255, 152),
+        "pastel yellow": (253, 253, 150),
+        "pastel pink": (255, 209, 220),
+        "pastel purple": (179, 158, 181),
+        "pastel orange": (255, 179, 71),
+        "pastel green": (119, 221, 119),
+        "pastel blue": (174, 198, 207),
+        "pastel red": (255, 105, 97),
+
+        # Neons
+        "neon green": (57, 255, 20),
+        "neon blue": (77, 77, 255),
+        "neon pink": (255, 20, 147),
+        "neon yellow": (207, 255, 4),
+        "neon orange": (255, 95, 31),
+        "neon purple": (177, 13, 201),
+
+        # Warm tones
+        "amber": (255, 191, 0),
+        "apricot": (251, 206, 177),
+        "copper": (184, 115, 51),
+        "mustard": (255, 219, 88),
+        "ochre": (204, 119, 34),
+        "russet": (128, 70, 27),
+        "rust": (183, 65, 14),
+        "saffron": (244, 196, 48),
+        "sepia": (112, 66, 20),
+
+        # Cool tones
+        "aquamarine": (127, 255, 212),
+        "azure": (0, 127, 255),
+        "cobalt": (0, 71, 171),
+        "cerulean": (42, 82, 190),
+        "seafoam": (159, 226, 191),
+        "sky blue": (135, 206, 235),
+        "steel blue": (70, 130, 180),
+
+        # Earth tones
+        "khaki": (240, 230, 140),
+        "sand": (194, 178, 128),
+        "mahogany": (192, 64, 0),
+        "mocha": (150, 75, 0),
+        "coffee": (111, 78, 55),
+        "walnut": (119, 63, 26),
+        "forest green": (34, 139, 34),
+        "hunter green": (53, 94, 59),
+
+        # Miscellaneous
+        "fuchsia": (255, 0, 255),
+        "chartreuse": (127, 255, 0),
+        "periwinkle": (204, 204, 255),
+        "blush": (222, 93, 131),
+        "ivory": (255, 255, 240),
+        "cream": (255, 253, 208),
+        "off white": (253, 253, 250),
+        "pearl": (234, 224, 200),
+        "smoke": (115, 130, 118),
+        "slate": (112, 128, 144),
+        "gunmetal": (42, 52, 57),
+        "midnight blue": (25, 25, 112),
+        "midnight": (25, 25, 112),
+        "obsidian": (15, 15, 15)
     }
+
     if isinstance(c, str):
         s = c.strip().lower()
         if s in named:

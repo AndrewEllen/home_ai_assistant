@@ -49,7 +49,49 @@ _TOGGLE_WORDS = {"toggle", "switch"}
 _STATUS = {"status", "state", "is it", "what is", "what's"}
 _ALL_WORDS = {"all", "everything"}
 _ROOM_HINTS = {"room", "bedroom", "kitchen", "office", "hall", "hallway", "living", "lounge", "bathroom"}
-_COLOR_WORDS = {"red","green","blue","yellow","purple","pink","orange","cyan","magenta","turquoise","white","warm","cool","cold","neutral","daylight"}
+_COLOR_WORDS = {
+    # Base
+    "red","green","blue","yellow","purple","pink","orange","cyan","magenta","turquoise",
+    
+    # Extended basics
+    "lime","teal","violet","indigo","maroon","navy","olive","aqua","coral","crimson",
+    "lavender","mint","peach","plum","rose","salmon","scarlet","tan","beige","burgundy",
+    "emerald","gold","silver","bronze","charcoal","chocolate","brown","black","white","gray","grey",
+
+    # Pastels
+    "baby blue","baby pink","powder blue","mint green","pastel yellow","pastel pink",
+    "pastel purple","pastel orange","pastel green","pastel blue","pastel red",
+
+    # Bright tones
+    "neon green","neon blue","neon pink","neon yellow","neon orange","neon purple",
+    
+    # Warm tones
+    "amber","apricot","copper","mustard","ochre","russet","rust","saffron","sepia",
+    
+    # Cool tones
+    "aquamarine","azure","cobalt","cerulean","seafoam","sky blue","steel blue",
+    
+    # Earth tones
+    "khaki","sand","mahogany","mocha","coffee","walnut","forest green","hunter green",
+    
+    # Miscellaneous popular names
+    "fuchsia","chartreuse","periwinkle","blush","ivory","cream","off white",
+    "pearl","smoke","slate","gunmetal","midnight blue","midnight","obsidian"
+    
+    #white colour
+    "white","warm","cool","cold","neutral",
+    "daylight","day light","day","candlelight","candle light","candle",
+    "ivory","ivory white","warm white","cool white","soft white",
+    "amber","gold","sunset","sunrise","halogen","natural","pure white",
+    "bright white","arctic white"
+}
+_WHITE_COLOR_WORDS = (
+    "white","warm","cool","cold","neutral",
+    "daylight","day light","day","candlelight","candle light","candle",
+    "ivory","ivory white","warm white","cool white","soft white",
+    "amber","gold","sunset","sunrise","halogen","natural","pure white",
+    "bright white","arctic white"
+)
 _GENERIC_TOKENS = {"light", "lights", "lamp"}
 _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")
 
@@ -161,7 +203,7 @@ def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
         return "on", None, _extract_targets(t)
 
     # presets to map into color handler
-    for preset in ("white", "warm", "cool", "cold", "neutral", "daylight"):
+    for preset in _WHITE_COLOR_WORDS:
         if _contains_word(t, preset):
             return "color", preset, _extract_targets(t)
 
