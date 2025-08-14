@@ -166,23 +166,29 @@ def light_color(name_or_id: str, color: Any):
     _apply_rgb(dev, bulb, r, g, b)
 
 
-def _set_white_temp(dev: Dict[str, Any], bulb: tinytuya.BulbDevice, pct: int):
-    dp_mode = _dp_for(dev, ("mode", "work_mode", "colour_mode"))
-    if dp_mode:
-        try:
-            bulb.set_value(dp_mode, "white")
-        except Exception:
-            pass
+def _set_white_temp(dev: Dict[str, Any], bulb, pct: int):
+    """Switch to white while preserving current brightness; pct is colour temp 0–100."""
+    pct = max(0, min(100, int(pct)))
 
-    dp_ct = _dp_for(dev, ("temp_value", "temp_value_v2", "colour_temp"))
-    if dp_ct is None:
-        raise RuntimeError("Device does not support white temperature")
+    # read current brightness from whichever mode we are in
+    v_pct = None
+    try:
+        st = bulb.state()
+        if isinstance(st, dict) and "Error" not in st:
+            mode = str(bulb.get_mode(state=st)).lower()
+            if mode in ("colour", "color"):
+                # take V from HSV
+                _, _, v = bulb.colour_hsv(state=st)
+                v_pct = int(round(float(v) * 100.0))
+            else:
+                v_pct = int(round(float(bulb.get_brightness_percentage(state=st))))
+    except Exception:
+        pass
+    if v_pct is None:
+        v_pct = 100  # sensible default
 
-    meta = dev.get("mapping", {}).get(str(dp_ct), {}).get("values", {})
-    dmin = int(meta.get("min", 0))
-    dmax = int(meta.get("max", 1000))
-    val = int(round(dmin + (dmax - dmin) * (pct / 100.0)))
-    bulb.set_value(dp_ct, val)
+    # library handles switching to white + applies brightness and colour temp as percentages
+    return bulb.set_white_percentage(brightness=v_pct, colourtemp=pct)
 
 
 def _parse_color_input(c: Any) -> Tuple[int, int, int]:
@@ -333,29 +339,78 @@ def _read_current_hsv(dev: Dict[str, Any], bulb: tinytuya.BulbDevice) -> Optiona
         pass
     return None
 
-def _apply_rgb(dev, bulb, r, g, b, saturation: float | None = None, brightness: float | None = None):
-    import colorsys, time
-
-    r = max(0, min(255, int(r)))
-    g = max(0, min(255, int(g)))
-    b = max(0, min(255, int(b)))
-
-    h, s_calc, _ = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
-    s = s_calc if saturation is None else max(0.0, min(1.0, float(saturation)))
-    v = 1.0 if brightness is None else max(0.0, min(1.0, float(brightness)))
-
+def _read_current_brightness(dev: Dict[str, Any], bulb: tinytuya.BulbDevice) -> Optional[float]:
+    """Return current brightness 0..1 from mode-aware state, else None."""
     try:
-        bulb.set_mode("colour")
-        time.sleep(0.1)
+        st = bulb.state()
+        if isinstance(st, dict) and "Error" not in st:
+            mode = str(bulb.get_mode(state=st)).lower()
+            if mode in ("colour", "color"):
+                h, s, v = bulb.colour_hsv(state=st)
+                return float(v)
+            # white path
+            bp = float(bulb.get_brightness_percentage(state=st))
+            return max(0.0, min(1.0, bp / 100.0))
     except Exception:
-        dp_mode = _dp_for(dev, ("mode", "work_mode", "colour_mode"))
-        if dp_mode:
-            try:
-                bulb.set_value(dp_mode, "colour")
-                time.sleep(0.1)
-            except Exception:
-                pass
+        pass
 
+    # Fallback via raw DPS
+    try:
+        dps = bulb.status().get("dps", {}) or {}
+        dp_b = _dp_for(dev, ("bright_value_v2", "bright_value", "brightness"))
+        if dp_b and str(dp_b) in dps:
+            meta = dev.get("mapping", {}).get(str(dp_b), {}).get("values", {})
+            dmin = int(meta.get("min", 0)); dmax = int(meta.get("max", 1000)) or 1000
+            val = int(dps[str(dp_b)])
+            return max(0.0, min(1.0, (val - dmin) / float(max(1, dmax - dmin))))
+        for code in ("colour_data_v2","color_data_v2","colour_data","color_data"):
+            dp_c = _dp_for(dev, (code,))
+            if not dp_c or str(dp_c) not in dps or dps[str(dp_c)] is None:
+                continue
+            raw = dps[str(dp_c)]
+            if isinstance(raw, str) and raw.strip().startswith("{"):
+                obj = json.loads(raw); v = float(obj.get("v", obj.get("V", 1000)))
+            elif isinstance(raw, str):
+                m = re.match(r"^\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*$", raw)
+                if not m: continue
+                v = float(m.group(3))
+            elif isinstance(raw, dict):
+                v = float(raw.get("v", raw.get("V", 1000)))
+            else:
+                continue
+            return v/1000.0 if v > 3 else (v/255.0 if v > 1.0 else v)
+    except Exception:
+        pass
+    return None
+
+def _apply_rgb(dev, bulb, r, g, b, saturation: float | None = None, brightness: float | None = None):
+    import colorsys
+
+    r = max(0, min(255, int(r))); g = max(0, min(255, int(g))); b = max(0, min(255, int(b)))
+    h, s_calc, _ = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+
+    s = s_calc if saturation is None else max(0.0, min(1.0, float(saturation)))
+
+    if brightness is None:
+        # preserve current brightness regardless of mode
+        try:
+            st = bulb.state()
+            if isinstance(st, dict) and "Error" not in st:
+                mode = str(bulb.get_mode(state=st)).lower()
+                if mode in ("colour", "color"):
+                    _, _, v = bulb.colour_hsv(state=st)
+                    v = float(v)
+                else:
+                    v_pct = float(bulb.get_brightness_percentage(state=st))
+                    v = max(0.0, min(1.0, v_pct / 100.0))
+            else:
+                v = 1.0
+        except Exception:
+            v = 1.0
+    else:
+        v = max(0.0, min(1.0, float(brightness)))
+
+    # set_hsv switches to colour mode without resetting v
     bulb.set_hsv(h, s, v)
 
 
