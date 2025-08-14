@@ -228,3 +228,9 @@ models/**/*.npy
 models/**/*.npz
 models/**/*.json
 temp_audio/tts.wav
+
+# tuya
+devices.json
+tinytuya.json
+tuya-raw.json
+snapshot.json
