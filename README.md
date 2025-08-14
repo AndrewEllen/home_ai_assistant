@@ -40,6 +40,21 @@ This trains the model on that persons face. It will be trained off the most comm
 python .\tools\test_training_model.py {persons_name}
 
 
+# Setup lightbulbs
+
+read the tinytuya github page
+https://github.com/jasonacox/tinytuya
+
+run:
+python -m tinytuya wizard
+
+If your server is running on a subnet you can try something like:
+
+python -m tinytuya wizard -force 192.168.1.0/24 192.168.0.0/24
+
+although your server may need a persistent static route setup.
+
+
 # Running the main script
 
 python .\src\main.py

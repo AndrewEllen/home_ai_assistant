@@ -3,7 +3,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 import tinytuya
 
-# -------------------- File and Device Loading --------------------
+_SWITCH_CODES = ("switch", "switch_led", "switch_1", "led_switch", "switch_main")
+
+# -------------------- File and Device Loading -------------------
 
 def _find_file(fname: str) -> Optional[Path]:
     env = os.getenv("SMART_DEVICES_DIR")
@@ -78,37 +80,47 @@ def _bulb(dev: Dict[str, Any]) -> tinytuya.BulbDevice:
 
 def _dp_for(dev: Dict[str, Any], codes: Tuple[str, ...]) -> Optional[int]:
     for k, meta in dev.get("mapping", {}).items():
-        if meta.get("code") in codes:
-            try:
-                return int(k)
-            except Exception:
-                continue
+        code = (meta.get("code") or "").lower()
+        if code in codes:
+            try: return int(k)
+            except: continue
+    for k, meta in dev.get("mapping", {}).items():
+        code = (meta.get("code") or "").lower()
+        if any(code.startswith(c) for c in codes):
+            try: return int(k)
+            except: continue
+    for guess in (1, 20):
+        m = dev.get("mapping", {}).get(str(guess))
+        if isinstance(m, dict) and m.get("type") == "Boolean":
+            return guess
     return None
+
 
 # -------------------- Light State Controls --------------------
 
 def light_on(name_or_id: str):
     dev = _resolve_device(name_or_id)
-    dp = _dp_for(dev, ("switch", "switch_led", "switch_1"))
-    if dp is None:
+    dp = _dp_for(dev, _SWITCH_CODES)
+    if dp is None: 
         raise RuntimeError(f"No switch DP for '{dev['name']}'")
     return _bulb(dev).set_value(dp, True)
 
 def light_off(name_or_id: str):
     dev = _resolve_device(name_or_id)
-    dp = _dp_for(dev, ("switch", "switch_led", "switch_1"))
-    if dp is None:
+    dp = _dp_for(dev, _SWITCH_CODES)
+    if dp is None: 
         raise RuntimeError(f"No switch DP for '{dev['name']}'")
     return _bulb(dev).set_value(dp, False)
 
 def light_toggle(name_or_id: str):
     dev = _resolve_device(name_or_id)
-    dp = _dp_for(dev, ("switch", "switch_led", "switch_1"))
-    if dp is None:
+    dp = _dp_for(dev, _SWITCH_CODES)
+    if dp is None: 
         raise RuntimeError(f"No switch DP for '{dev['name']}'")
     bulb = _bulb(dev)
     state = bulb.status().get("dps", {}).get(str(dp), False)
     return bulb.set_value(dp, not state)
+
 
 # -------------------- Color and Temperature --------------------
 
