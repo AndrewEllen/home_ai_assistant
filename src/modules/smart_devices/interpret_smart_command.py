@@ -210,6 +210,42 @@ def _filter_online(targets: List[str]) -> List[str]:
             out.append(name)
     return out
 
+_CLAUSE_SPLIT_RE = re.compile(r"\b(?:and then|then|and|,|;)\b", re.I)
+
+def _split_clauses(text: str) -> List[str]:
+    return [c.strip() for c in _CLAUSE_SPLIT_RE.split(text) if c.strip()]
+
+def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
+    targets = _ensure_targets(targets)
+    if not targets:
+        return "No matching device."
+    targets = _filter_online(targets)
+    if not targets:
+        return "No matching device."
+
+    if action == "on":
+        return _exec_each(targets, lambda d: (light_on(d) or "on"))
+    if action == "off":
+        return _exec_each(targets, lambda d: (light_off(d) or "off"))
+    if action == "toggle":
+        return _exec_each(targets, lambda d: (light_toggle(d) or "toggled"))
+    if action == "color":
+        col = str(value) if value else "white"
+        return _exec_each(targets, lambda d: (light_color(d, col) or f"color {col}"))
+    if action == "brightness":
+        pct = int(value) if value is not None else 100
+        return _exec_each(targets, lambda d: (light_brightness(d, pct) or f"brightness {pct}%"))
+    if action == "status":
+        resp = []
+        for name in targets:
+            meta = _DEVICE_BY_NAME.get(name.lower())
+            if meta:
+                resp.append(f"{meta.get('name', name)}: ip={meta.get('ip') or 'unknown'}")
+            else:
+                resp.append(f"{name}: unknown")
+        return "\n".join(resp)
+    return "Unknown action."
+
 # ------- parser -------
 def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
     t = _normalize(text)
@@ -266,39 +302,22 @@ def _exec_each(targets: List[str], fn):
     return "\n".join(outputs) if outputs else "No matching device."
 
 def execute_command(text: str) -> str:
+    # If multiple clauses, run each one with shared targets fallback
+    clauses = _split_clauses(text)
+    if len(clauses) > 1:
+        shared_targets = _extract_targets(_normalize(text))
+        outputs = []
+        for c in clauses:
+            action, value, targets = parse_command(c)
+            if not targets:
+                targets = shared_targets
+            outputs.append(_run_action(action, value, targets))
+        return "\n".join(o for o in outputs if o)
+    # Single-clause path (backward compatible)
     action, value, targets = parse_command(text)
-    targets = _ensure_targets(targets)
     if not targets:
         targets = _best_device_freeform(text)
-    if not targets:
-        return "No matching device."
-    targets = _filter_online(targets)
-    if not targets:
-        return "No matching device."
-
-    if action == "on":
-        return _exec_each(targets, lambda d: (light_on(d) or "on"))
-    if action == "off":
-        return _exec_each(targets, lambda d: (light_off(d) or "off"))
-    if action == "toggle":
-        return _exec_each(targets, lambda d: (light_toggle(d) or "toggled"))
-    if action == "color":
-        col = str(value) if value else "white"
-        return _exec_each(targets, lambda d: (light_color(d, col) or f"color {col}"))
-    if action == "brightness":
-        pct = int(value) if value is not None else 100
-        return _exec_each(targets, lambda d: (light_brightness(d, pct) or f"brightness {pct}%"))
-    if action == "status":
-        resp = []
-        for name in targets:
-            meta = _DEVICE_BY_NAME.get(name.lower())
-            if meta:
-                resp.append(f"{meta.get('name', name)}: ip={meta.get('ip') or 'unknown'}")
-            else:
-                resp.append(f"{name}: unknown")
-        return "\n".join(resp)
-
-    return "Unknown action."
+    return _run_action(action, value, targets)
 
 # ------- console -------
 def start_console_command_listener() -> threading.Thread:

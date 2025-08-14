@@ -1,4 +1,5 @@
 import json, os, time
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 import tinytuya
@@ -312,15 +313,36 @@ def _parse_color_input(c: Any) -> Tuple[int, int, int]:
         return tuple(max(0, min(255, int(v))) for v in c)
     raise ValueError(f"Unsupported color '{c}'")
 
+def _read_current_hsv(dev: Dict[str, Any], bulb: tinytuya.BulbDevice) -> Optional[Tuple[float, float, float]]:
+    """Return current (h,s,v) in 0..1, or None if unavailable."""
+    try:
+        st = bulb.state()
+        if isinstance(st, dict) and "Error" not in st:
+            h, s, v = bulb.colour_hsv(state=st)
+            return float(h), float(s), float(v)
+    except Exception:
+        pass
+    # Fallback via raw DPS "colour" if state() path failed
+    try:
+        dps = bulb.status().get("dps", {}) or {}
+        dp_colour = getattr(bulb, "dpset", {}).get("colour")
+        if dp_colour and dp_colour in dps and isinstance(dps[dp_colour], str):
+            h, s, v = tinytuya.BulbDevice.hexvalue_to_hsv(dps[dp_colour], getattr(bulb, "dpset", {}).get("value_hexformat"))
+            return float(h), float(s), float(v)
+    except Exception:
+        pass
+    return None
 
-def _apply_rgb(dev, bulb, r, g, b):
+def _apply_rgb(dev, bulb, r, g, b, saturation: float | None = None, brightness: float | None = None):
     import colorsys, time
 
     r = max(0, min(255, int(r)))
     g = max(0, min(255, int(g)))
     b = max(0, min(255, int(b)))
 
-    h, _, _ = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)  # 0..1
+    h, s_calc, _ = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+    s = s_calc if saturation is None else max(0.0, min(1.0, float(saturation)))
+    v = 1.0 if brightness is None else max(0.0, min(1.0, float(brightness)))
 
     try:
         bulb.set_mode("colour")
@@ -334,41 +356,39 @@ def _apply_rgb(dev, bulb, r, g, b):
             except Exception:
                 pass
 
-    # Send one atomic colour command with max saturation and brightness
-    bulb.set_hsv(h, 1.0, 1.0)
-
+    bulb.set_hsv(h, s, v)
 
 
 # ---------------------------------------- Brightness ----------------------------------------
 
 
 def light_brightness(name_or_id: str, percent: int):
-    """Set brightness to 0–100% (scales to device DP range)."""
+    """0–100%. If mode=colour, keep H/S and change V; else use white brightness."""
     dev = _resolve_device(name_or_id)
     bulb = _bulb(dev)
     light_on(name_or_id)
 
-    # Prefer white mode for brightness control
-    try:
-        bulb.set_mode("white")
-        time.sleep(0.1)
-    except Exception:
-        dp_mode = _dp_for(dev, ("mode", "work_mode", "colour_mode"))
-        if dp_mode:
-            try:
-                bulb.set_value(dp_mode, "white")
-                time.sleep(0.1)
-            except Exception:
-                pass
-
-    dp_bright = _dp_for(dev, ("bright_value_v2", "bright_value", "brightness"))
-    if dp_bright is None:
-        raise RuntimeError("Device does not support brightness")
-
     pct = max(0, min(100, int(percent)))
-    meta = dev.get("mapping", {}).get(str(dp_bright), {}).get("values", {})
-    dmin = int(meta.get("min", 0))
-    dmax = int(meta.get("max", 1000))
-    val = int(round(dmin + (dmax - dmin) * (pct / 100.0)))
+    v_new = pct / 100.0
 
-    return bulb.set_value(dp_bright, val)
+    # Read mode via library (robust across DP variants)
+    try:
+        st = bulb.state()
+    except Exception:
+        st = None
+    try:
+        mode = str(bulb.get_mode(state=st)).lower()
+    except Exception:
+        mode = str((st or {}).get("mode", "")).lower() if isinstance(st, dict) else ""
+
+    if mode in ("colour", "color"):
+        hsv = _read_current_hsv(dev, bulb)
+        if hsv:
+            h, s, _ = hsv
+            return bulb.set_hsv(h, s, v_new)  # stays in colour, preserves H/S
+        # Fallback if HSV unreadable
+        return bulb.set_brightness_percentage(pct)
+
+    # White or unknown → library handles scaling and DP
+    return bulb.set_brightness_percentage(pct)
+
