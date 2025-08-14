@@ -1,7 +1,12 @@
 import time
+import wave
+import simpleaudio as audio
+from piper import PiperVoice
 from .facial_recognition import FaceRecognitionThread
 
 MY_NAME = "andrew"
+
+voice = PiperVoice.load("C:/Projects/home_ai_assistant/src/assets/en_GB-alba-medium.onnx")
 
 # cooldowns in seconds
 COOLDOWN = {
@@ -77,6 +82,11 @@ def process_recognitions(recognized_faces):
         print(msg)
         last_fired[msg_type] = now
         last_any_greeting = now
+        with wave.open("temp_audio/tts.wav", "wb") as wav_file:
+            voice.synthesize_wav(msg, wav_file)
+        wave_obj = audio.WaveObject.from_wave_file("temp_audio/tts.wav")
+        play_obj = wave_obj.play()
+        play_obj.wait_done()
 
 
 def start_face_recognition(recognized_faces):
