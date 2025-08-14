@@ -40,7 +40,7 @@ This trains the model on that persons face. It will be trained off the most comm
 python .\tools\test_training_model.py {persons_name}
 
 
-# Setup lightbulbs/smart devices
+# Setup lightbulbs/smart devices (Tuya)
 
 read the tinytuya github page
 https://github.com/jasonacox/tinytuya
@@ -64,3 +64,7 @@ This will return the microphone index. Next just set the device in the voice_thr
 # Running the main script
 
 python .\src\main.py
+
+If everything is setup correctly you should now be recognised by the assistant and be welcomed. Be able to control your lights after saying the phrase "Hey Sharon" and also in the console through typing commands.
+
+The facial recognition is designed with a wireless camera at your door or wherever you would want that greets you as you come and go. This setup should work entirely offline.
