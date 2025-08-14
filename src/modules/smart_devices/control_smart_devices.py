@@ -337,3 +337,38 @@ def _apply_rgb(dev, bulb, r, g, b):
     # Send one atomic colour command with max saturation and brightness
     bulb.set_hsv(h, 1.0, 1.0)
 
+
+
+# ---------------------------------------- Brightness ----------------------------------------
+
+
+def light_brightness(name_or_id: str, percent: int):
+    """Set brightness to 0–100% (scales to device DP range)."""
+    dev = _resolve_device(name_or_id)
+    bulb = _bulb(dev)
+    light_on(name_or_id)
+
+    # Prefer white mode for brightness control
+    try:
+        bulb.set_mode("white")
+        time.sleep(0.1)
+    except Exception:
+        dp_mode = _dp_for(dev, ("mode", "work_mode", "colour_mode"))
+        if dp_mode:
+            try:
+                bulb.set_value(dp_mode, "white")
+                time.sleep(0.1)
+            except Exception:
+                pass
+
+    dp_bright = _dp_for(dev, ("bright_value_v2", "bright_value", "brightness"))
+    if dp_bright is None:
+        raise RuntimeError("Device does not support brightness")
+
+    pct = max(0, min(100, int(percent)))
+    meta = dev.get("mapping", {}).get(str(dp_bright), {}).get("values", {})
+    dmin = int(meta.get("min", 0))
+    dmax = int(meta.get("max", 1000))
+    val = int(round(dmin + (dmax - dmin) * (pct / 100.0)))
+
+    return bulb.set_value(dp_bright, val)

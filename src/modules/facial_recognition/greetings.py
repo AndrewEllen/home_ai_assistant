@@ -1,6 +1,8 @@
 import time
 import wave
+import threading
 import simpleaudio as audio
+from pathlib import Path
 from piper import PiperVoice
 from .facial_recognition import FaceRecognitionThread
 
@@ -8,7 +10,6 @@ MY_NAME = "andrew"
 
 voice = PiperVoice.load("C:/Projects/home_ai_assistant/src/assets/en_GB-alba-medium.onnx")
 
-# cooldowns in seconds
 COOLDOWN = {
     "andrew_alone": 60,
     "andrew_with_few": 60,
@@ -18,10 +19,23 @@ COOLDOWN = {
     "generic": 30,
 }
 
-GLOBAL_COOLDOWN = 60  # minimum gap between any "Welcome" message
+GLOBAL_COOLDOWN = 10  # seconds
 
-last_fired = {}        # msg_type -> last_time
-last_any_greeting = 0  # last time *any* greeting was spoken
+last_fired = {}
+last_any_greeting = 0
+
+
+def _play_tts(msg):
+    Path("temp_audio").mkdir(parents=True, exist_ok=True)
+    with wave.open("temp_audio/tts.wav", "wb") as wav_file:
+        voice.synthesize_wav(msg, wav_file)
+    wave_obj = audio.WaveObject.from_wave_file("temp_audio/tts.wav")
+    play_obj = wave_obj.play()
+    play_obj.wait_done()
+
+
+def _play_tts_async(msg):
+    threading.Thread(target=_play_tts, args=(msg,), daemon=True).start()
 
 
 def format_names(names):
@@ -66,31 +80,42 @@ def build_message(current_names):
 
 
 def process_recognitions(recognized_faces):
-    """Called every loop iteration. Prints greeting if cooldowns allow."""
     global last_fired, last_any_greeting
     if not recognized_faces:
         return
 
-    names_now = {name for name, _ in recognized_faces}
-    msg_type, msg = build_message(names_now)
-
     now = time.time()
+    names_now = {name for name, _ in recognized_faces}
+
+    # Sliding global cooldown
+    if last_any_greeting and now - last_any_greeting < GLOBAL_COOLDOWN:
+        last_any_greeting = now
+        return
+    elif last_any_greeting and now - last_any_greeting >= GLOBAL_COOLDOWN:
+        print(f"[DEBUG] Global cooldown over ({GLOBAL_COOLDOWN}s)")
+
+    msg_type, msg = build_message(names_now)
     type_cd = COOLDOWN.get(msg_type, 60)
 
+    # Sliding Andrew-specific cooldown
+    if msg_type in ("andrew_alone", "andrew_with_few", "andrew_with_many"):
+        lf = last_fired.get(msg_type, 0)
+        if lf and now - lf < type_cd:
+            last_fired[msg_type] = now
+            return
+        elif lf and now - lf >= type_cd:
+            print(f"[DEBUG] Cooldown over for '{msg_type}' ({type_cd}s)")
+
+    # Fire if both cooldowns are clear
     if (now - last_any_greeting >= GLOBAL_COOLDOWN
             and now - last_fired.get(msg_type, 0) >= type_cd):
         print(msg)
         last_fired[msg_type] = now
         last_any_greeting = now
-        with wave.open("temp_audio/tts.wav", "wb") as wav_file:
-            voice.synthesize_wav(msg, wav_file)
-        wave_obj = audio.WaveObject.from_wave_file("temp_audio/tts.wav")
-        play_obj = wave_obj.play()
-        play_obj.wait_done()
+        _play_tts_async(msg)
 
 
 def start_face_recognition(recognized_faces):
-    """Starts background face recognition thread."""
     face_thread = FaceRecognitionThread(recognized_faces)
     face_thread.start()
     return face_thread

@@ -9,9 +9,26 @@ import re
 from modules.smart_devices.interpret_smart_command import execute_command
 
 WAKE_PHRASE = "hey sharon"
+_last_command_time = 0
+_WAKE_WINDOW = 10  # seconds
 
 def on_voice_command(text: str):
+    global _last_command_time
     cleaned = re.sub(r"[^\w\s]", "", text).lower()
+    now = time.time()
+
+    # inside wake window → run directly
+    if now - _last_command_time <= _WAKE_WINDOW:
+        cmd = cleaned.strip()
+        if cmd:
+            print("\nVOICE:", text)
+            result = execute_command(cmd)
+            if result:
+                print(result)
+        _last_command_time = now
+        return
+    
+    # otherwise require wake phrase
     idx = cleaned.find(WAKE_PHRASE)
     if idx != -1:
         cmd = cleaned[idx + len(WAKE_PHRASE):].strip()
@@ -20,9 +37,7 @@ def on_voice_command(text: str):
             result = execute_command(cmd)
             if result:
                 print(result)
-    else:
-        # Wake phrase not present, ignore
-        pass
+            _last_command_time = now
 
 
 def main():

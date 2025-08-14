@@ -3,7 +3,7 @@ import json, re, threading, difflib
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
 from .control_smart_devices import (
-    light_on, light_off, light_toggle, light_color, _find_file
+    light_on, light_off, light_toggle, light_color, _find_file, light_brightness
 )
 
 # ------- load devices + snapshot -------
@@ -46,6 +46,8 @@ _DEVICE_TOKENS = {name: set(re.sub(r"[^a-z0-9 ]+", "", name.lower()).split()) fo
 _ON_WORDS = {"on", "enable", "start", "power on"}
 _OFF_WORDS = {"off", "disable", "stop", "power off", "shutdown"}
 _TOGGLE_WORDS = {"toggle", "switch"}
+_BRIGHTNESS = {"brightness"}
+_GENERIC_LIGHT_TOKENS = {"light", "lights", "lamp", "lamps", "bulb", "bulbs"}
 _STATUS = {"status", "state", "is it", "what is", "what's"}
 _ALL_WORDS = {"all", "everything"}
 _ROOM_HINTS = {"room", "bedroom", "kitchen", "office", "hall", "hallway", "living", "lounge", "bathroom"}
@@ -110,6 +112,35 @@ def _has_color(text: str) -> Optional[str]:
         if re.search(rf"\b{re.escape(c)}\b", text):
             return c
     return None
+
+def _extract_brightness_strict(text: str) -> Optional[int]:
+    if not any(_contains_word(text, w) for w in _BRIGHTNESS):
+        return None
+    m = re.search(r"(?:brightness|bright)\s*(?:to|at|=)?\s*(\d{1,3})\s*%?", text) \
+        or re.search(r"(\d{1,3})\s*%?\s*(?:brightness|bright)", text)
+    if not m:
+        return None
+    v = int(m.group(1))
+    return max(0, min(100, v))
+
+def _extract_brightness_loose(text: str, targets: List[str]) -> Optional[int]:
+    if not _looks_like_light(text, targets):
+        return None
+    m = re.search(r"\b(?:to|at)\s*(\d{1,3})\s*%?\b", text) or re.search(r"\b(\d{1,3})\s*%\b", text)
+    if not m and targets:
+        m = re.search(r"\b(\d{1,3})\b", text)
+    if not m:
+        return None
+    v = int(m.group(1))
+    return max(0, min(100, v))
+
+def _looks_like_light(text: str, targets: List[str]) -> bool:
+    if any(_contains_word(text, w) for w in _GENERIC_LIGHT_TOKENS):
+        return True
+    for t in targets:
+        if any(w in t.lower() for w in _GENERIC_LIGHT_TOKENS):
+            return True
+    return False
 
 def _best_devices_from_tokens(qt: set[str]) -> List[str]:
     if qt & _ALL_WORDS:
@@ -182,6 +213,7 @@ def _filter_online(targets: List[str]) -> List[str]:
 # ------- parser -------
 def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
     t = _normalize(text)
+    targets_guess = _extract_targets(t)
 
     if any(_contains_word(t, w) for w in _STATUS):
         return "status", None, _extract_targets(t)
@@ -190,6 +222,14 @@ def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
         return "on", None, _extract_targets(t)
     if re.search(r"\b(turn|switch)\s+off\b", t):
         return "off", None, _extract_targets(t)
+    
+    b = _extract_brightness_strict(t)
+    if b is None:
+        # if we don’t have confident targets yet, try a freeform guess for gating
+        tg = targets_guess or _best_device_freeform(t)
+        b = _extract_brightness_loose(t, tg)
+    if b is not None:
+        return "brightness", str(b), targets_guess
 
     color = _has_color(t)
     if color:
@@ -245,6 +285,9 @@ def execute_command(text: str) -> str:
     if action == "color":
         col = str(value) if value else "white"
         return _exec_each(targets, lambda d: (light_color(d, col) or f"color {col}"))
+    if action == "brightness":
+        pct = int(value) if value is not None else 100
+        return _exec_each(targets, lambda d: (light_brightness(d, pct) or f"brightness {pct}%"))
     if action == "status":
         resp = []
         for name in targets:
