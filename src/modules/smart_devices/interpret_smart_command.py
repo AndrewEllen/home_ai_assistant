@@ -1,5 +1,7 @@
 # modules/smart_devices/interpret_smart_command.py
 import json, re, threading, difflib
+from modules.weather.weather_api import get_weather
+from modules.voice_synth.voice_synth import speak_async
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
 from .control_smart_devices import (
@@ -43,6 +45,8 @@ for d in _DEVICES:
 _DEVICE_TOKENS = {name: set(re.sub(r"[^a-z0-9 ]+", "", name.lower()).split()) for name in _DEVICE_NAMES}
 
 # ------- vocab -------
+_WEATHER_WORDS = {"weather", "forecast", "temperature", "rain", "snow", "wind"}
+_PLACE_RE = re.compile(r"\b(?:in|at|for)\s+([a-z0-9 ,.'-]{2,})$", re.I)
 _ON_WORDS = {"on", "enable", "start", "power on"}
 _OFF_WORDS = {"off", "disable", "stop", "power off", "shutdown"}
 _TOGGLE_WORDS = {"toggle", "switch"}
@@ -216,6 +220,12 @@ def _split_clauses(text: str) -> List[str]:
     return [c.strip() for c in _CLAUSE_SPLIT_RE.split(text) if c.strip()]
 
 def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
+
+    if action == "weather":
+        place = value if isinstance(value, str) and value.strip() else None
+        return get_weather(place)
+    
+
     targets = _ensure_targets(targets)
     if not targets:
         return "No matching device."
@@ -250,6 +260,13 @@ def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
 def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
     t = _normalize(text)
     targets_guess = _extract_targets(t)
+
+    # weather queries
+    if any(_contains_word(t, w) for w in _WEATHER_WORDS):
+        m = _PLACE_RE.search(text.strip())
+        place = m.group(1).strip() if m else None
+        return "weather", place, []  # targets unused
+
 
     if any(_contains_word(t, w) for w in _STATUS):
         return "status", None, _extract_targets(t)
@@ -326,7 +343,9 @@ def start_console_command_listener() -> threading.Thread:
             try:
                 text = input("> ").strip()
                 if text:
-                    print(execute_command(text))
+                    result = execute_command(text)
+                    print(result)
+                    speak_async(result)
             except (EOFError, KeyboardInterrupt):
                 break
     th = threading.Thread(target=_loop, daemon=True)

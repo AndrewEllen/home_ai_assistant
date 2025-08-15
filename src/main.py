@@ -10,7 +10,7 @@ from modules.smart_devices.interpret_smart_command import execute_command
 
 WAKE_PHRASE = "hey sharon"
 _last_command_time = 0
-_WAKE_WINDOW = 10  # seconds
+_WAKE_WINDOW = 3  # seconds
 
 def on_voice_command(text: str):
     global _last_command_time
@@ -25,6 +25,7 @@ def on_voice_command(text: str):
             result = execute_command(cmd)
             if result:
                 print(result)
+                speak_async(result)
         _last_command_time = now
         return
     
@@ -37,6 +38,7 @@ def on_voice_command(text: str):
             result = execute_command(cmd)
             if result:
                 print(result)
+                speak_async(result)
             _last_command_time = now
 
 
