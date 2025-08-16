@@ -1,7 +1,11 @@
 # modules/smart_devices/interpret_smart_command.py
 import json, re, threading, difflib
+
 from modules.weather.weather_api import get_weather
 from modules.voice_synth.voice_synth import speak_async
+from modules.maths.calculator import try_calculate
+from modules.time.date_and_time import build_time_message
+
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
 from .control_smart_devices import (
@@ -46,11 +50,27 @@ _DEVICE_TOKENS = {name: set(re.sub(r"[^a-z0-9 ]+", "", name.lower()).split()) fo
 
 # ------- vocab -------
 _WEATHER_WORDS = {"weather", "forecast", "temperature", "rain", "snow", "wind"}
+_MATH_WORDS = {
+    # basic operations
+    "plus", "add", "addition", "minus", "subtract", "subtraction",
+    "times", "multiply", "multiplied", "multiplication",
+    "divide", "divided", "division", "over", "into",
+    "mod", "modulus", "remainder",
+    "power", "to the power", "raised", "squared", "cubed",
+    # roots
+    "square root", "cube root", "root",
+    # percentages
+    "percent of", "percentage of"
+}
+_MATH_SYM_RE = re.compile(r"\d+\s*(?:[\+\-\*/^]|percent)", re.I)
+_TIME_DATE_WORDS = {"time", "date", "day", "month", "year", "today", "now"}
 _PLACE_RE = re.compile(r"\b(?:in|at|for)\s+([a-z0-9 ,.'-]{2,})$", re.I)
 _ON_WORDS = {"on", "enable", "start", "power on"}
 _OFF_WORDS = {"off", "disable", "stop", "power off", "shutdown"}
 _TOGGLE_WORDS = {"toggle", "switch"}
-_BRIGHTNESS = {"brightness"}
+_BRIGHTNESS = {"brightness", "dim", "brighten"}
+_DIM_WORDS = {"dim"}
+_BRIGHTEN_WORDS = {"brighten"}
 _GENERIC_LIGHT_TOKENS = {"light", "lights", "lamp", "lamps", "bulb", "bulbs"}
 _STATUS = {"status", "state", "is it", "what is", "what's"}
 _ALL_WORDS = {"all", "everything"}
@@ -214,7 +234,23 @@ def _filter_online(targets: List[str]) -> List[str]:
             out.append(name)
     return out
 
+def _all_room_devices(room: Optional[str]) -> List[str]:
+    if not room:
+        return []
+    r = room.lower().strip()
+    return [n for n in _DEVICE_NAMES if r in n.lower()]
+
+
 _CLAUSE_SPLIT_RE = re.compile(r"\b(?:and then|then|and|,|;)\b", re.I)
+
+# ------- executor helpers -------
+def _do_and_label(fn, label: str) -> str:
+    try:
+        fn()
+        return label
+    except Exception as e:
+        return f"Error: {e}"
+
 
 def _split_clauses(text: str) -> List[str]:
     return [c.strip() for c in _CLAUSE_SPLIT_RE.split(text) if c.strip()]
@@ -225,6 +261,20 @@ def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
         place = value if isinstance(value, str) and value.strip() else None
         return get_weather(place)
     
+    if action == "math":
+        try:
+            res = try_calculate(value or "")
+            return "The answer is " + str(res) if res is not None else "No calculation found."
+        except Exception as e:
+            return f"Math error: {e}"
+        
+    if action == "time":
+        try:
+            res = build_time_message(value or "")
+            return str(res) if res is not None else "No calculation found."
+        except Exception as e:
+            return f"Couldn't get the time: {e}"
+
 
     targets = _ensure_targets(targets)
     if not targets:
@@ -234,17 +284,22 @@ def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
         return "No matching device."
 
     if action == "on":
-        return _exec_each(targets, lambda d: (light_on(d) or "on"))
+        return _exec_each(targets, lambda d: _do_and_label(lambda: light_on(d), "turned on"))
+
     if action == "off":
-        return _exec_each(targets, lambda d: (light_off(d) or "off"))
+        return _exec_each(targets, lambda d: _do_and_label(lambda: light_off(d), "turned off"))
+
     if action == "toggle":
-        return _exec_each(targets, lambda d: (light_toggle(d) or "toggled"))
+        return _exec_each(targets, lambda d: _do_and_label(lambda: light_toggle(d), "toggled"))
+
     if action == "color":
         col = str(value) if value else "white"
-        return _exec_each(targets, lambda d: (light_color(d, col) or f"color {col}"))
+        return _exec_each(targets, lambda d: _do_and_label(lambda: light_color(d, col), f"set to {col}"))
+
     if action == "brightness":
         pct = int(value) if value is not None else 100
-        return _exec_each(targets, lambda d: (light_brightness(d, pct) or f"brightness {pct}%"))
+        return _exec_each(targets, lambda d: _do_and_label(lambda: light_brightness(d, pct), f"brightness set to {pct}%"))
+
     if action == "status":
         resp = []
         for name in targets:
@@ -266,7 +321,19 @@ def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
         m = _PLACE_RE.search(text.strip())
         place = m.group(1).strip() if m else None
         return "weather", place, []  # targets unused
-
+    
+    # maths
+    if any(_contains_word(t, w) for w in _MATH_WORDS) or _MATH_SYM_RE.search(text):
+        return "math", text, []
+    
+    # time
+    if any(_contains_word(t, w) for w in _TIME_DATE_WORDS):
+        return "time", text, []
+    
+    if any(_contains_word(t, w) for w in _DIM_WORDS) and _looks_like_light(t, targets_guess):
+        return "brightness", "30", targets_guess
+    if any(_contains_word(t, w) for w in _BRIGHTEN_WORDS) and _looks_like_light(t, targets_guess):
+        return "brightness", "100", targets_guess
 
     if any(_contains_word(t, w) for w in _STATUS):
         return "status", None, _extract_targets(t)
@@ -316,34 +383,50 @@ def _exec_each(targets: List[str], fn):
         except Exception as e:
             msg = f"Error: {e}"
         outputs.append(f"{dev}: {msg}")
-    return "\n".join(outputs) if outputs else "No matching device."
+    return "\n".join(outputs) if outputs else "Sorry, I didn't understand that."
 
-def execute_command(text: str) -> str:
-    # If multiple clauses, run each one with shared targets fallback
+def execute_command(text: str, room: str | None = None) -> str:
+    action, value, targets = parse_command(text)
+
+    # Never split for these intents
+    if action in {"time", "weather", "math"}:
+        return _run_action(action, value, targets or [])
+
+    # Multi-clause handling
     clauses = _split_clauses(text)
     if len(clauses) > 1:
         shared_targets = _extract_targets(_normalize(text))
+        if not shared_targets and room:
+            shared_targets = _all_room_devices(room)
+
         outputs = []
         for c in clauses:
-            action, value, targets = parse_command(c)
-            if not targets:
-                targets = shared_targets
-            outputs.append(_run_action(action, value, targets))
+            a, v, t = parse_command(c)
+            if not t:
+                t = shared_targets
+                if not t and room:
+                    t = _all_room_devices(room)
+            outputs.append(_run_action(a, v, t))
         return "\n".join(o for o in outputs if o)
-    # Single-clause path (backward compatible)
-    action, value, targets = parse_command(text)
+
+    # Single clause fallback
     if not targets:
         targets = _best_device_freeform(text)
+        if not targets and room:
+            targets = _all_room_devices(room)
+
     return _run_action(action, value, targets)
 
+
+
 # ------- console -------
-def start_console_command_listener() -> threading.Thread:
+def start_console_command_listener(room: str) -> threading.Thread:
     def _loop():
         while True:
             try:
                 text = input("> ").strip()
                 if text:
-                    result = execute_command(text)
+                    result = execute_command(text=text, room=room)
                     print(result)
                     speak_async(result)
             except (EOFError, KeyboardInterrupt):

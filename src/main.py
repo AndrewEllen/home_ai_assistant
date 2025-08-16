@@ -8,6 +8,9 @@ from modules.smart_devices.interpret_smart_command import execute_command
 import re
 from modules.smart_devices.interpret_smart_command import execute_command
 
+#Hardcoded for now, hopefully in future can be taken from microphone location
+ROOM_COMMAND_GIVEN = "office"
+
 WAKE_PHRASE = "hey sharon"
 _last_command_time = 0
 _WAKE_WINDOW = 3  # seconds
@@ -18,16 +21,16 @@ def on_voice_command(text: str):
     now = time.time()
 
     # inside wake window → run directly
-    if now - _last_command_time <= _WAKE_WINDOW:
-        cmd = cleaned.strip()
-        if cmd:
-            print("\nVOICE:", text)
-            result = execute_command(cmd)
-            if result:
-                print(result)
-                speak_async(result)
-        _last_command_time = now
-        return
+    #if now - _last_command_time <= _WAKE_WINDOW:
+    #    cmd = cleaned.strip()
+    #    if cmd:
+    #        print("\nVOICE:", text)
+    #        result = execute_command(cmd)
+    #        if result:
+    #            print(result)
+    #            #speak_async(result)
+    #    _last_command_time = now
+    #    return
     
     # otherwise require wake phrase
     idx = cleaned.find(WAKE_PHRASE)
@@ -35,7 +38,7 @@ def on_voice_command(text: str):
         cmd = cleaned[idx + len(WAKE_PHRASE):].strip()
         if cmd:
             print("\nVOICE:", text)
-            result = execute_command(cmd)
+            result = execute_command(text=cmd, room=ROOM_COMMAND_GIVEN)
             if result:
                 print(result)
                 speak_async(result)
@@ -64,7 +67,7 @@ def main():
     )
 
     face_thread = start_face_recognition(recognized_faces)
-    start_console_command_listener()
+    start_console_command_listener(room=ROOM_COMMAND_GIVEN)
 
     print("AI Assistant started. Waiting for recognitions...")
 
@@ -82,5 +85,14 @@ def main():
         face_thread.join()
 
 
+def main_small():
+    
+    start_console_command_listener(room=ROOM_COMMAND_GIVEN)
+
+    while True:
+        time.sleep(0.1)
+
+
+
 if __name__ == "__main__":
-    main()
+    main_small()
