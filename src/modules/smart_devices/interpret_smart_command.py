@@ -5,6 +5,9 @@ from modules.weather.weather_api import get_weather
 from modules.voice_synth.voice_synth import speak_async
 from modules.maths.calculator import try_calculate
 from modules.time.date_and_time import build_time_message
+from modules.time.control_timer import handle_timer_intent, TIMER
+from modules.google_search.search_for_answers import answer_with_search
+
 
 from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
@@ -64,9 +67,10 @@ _MATH_WORDS = {
 }
 _MATH_SYM_RE = re.compile(r"\d+\s*(?:[\+\-\*/^]|percent)", re.I)
 _TIME_DATE_WORDS = {"time", "date", "day", "month", "year", "today", "now"}
+_SEARCH_START = {"who", "what", "when", "where", "why", "how"}
 _PLACE_RE = re.compile(r"\b(?:in|at|for)\s+([a-z0-9 ,.'-]{2,})$", re.I)
 _ON_WORDS = {"on", "enable", "start", "power on"}
-_OFF_WORDS = {"off", "disable", "stop", "power off", "shutdown"}
+_OFF_WORDS = {"off", "disable", "power off", "shutdown"}
 _TOGGLE_WORDS = {"toggle", "switch"}
 _BRIGHTNESS = {"brightness", "dim", "brighten"}
 _DIM_WORDS = {"dim"}
@@ -274,7 +278,18 @@ def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
             return str(res) if res is not None else "No calculation found."
         except Exception as e:
             return f"Couldn't get the time: {e}"
-
+        
+    if action == "timer":
+        return value
+    
+    if action == "search":
+        try:
+            # bundle = web_search(value)  # fetch web results
+            # return humanize_search(value, bundle, is_topic=False)
+            res = answer_with_search(value)
+            return res["answer"]
+        except Exception as e:
+            return f"Search error: {e}"
 
     targets = _ensure_targets(targets)
     if not targets:
@@ -309,7 +324,7 @@ def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
             else:
                 resp.append(f"{name}: unknown")
         return "\n".join(resp)
-    return "Unknown action."
+    return "Sorry, I didn't understand that command."
 
 # ------- parser -------
 def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
@@ -329,6 +344,13 @@ def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
     # time
     if any(_contains_word(t, w) for w in _TIME_DATE_WORDS):
         return "time", text, []
+    
+    resp = handle_timer_intent(text)
+    if resp is not None:
+        return "timer", resp, []
+    
+    if any(text.lower().startswith(q) for q in _SEARCH_START):
+        return "search", text, []
     
     if any(_contains_word(t, w) for w in _DIM_WORDS) and _looks_like_light(t, targets_guess):
         return "brightness", "30", targets_guess
@@ -367,7 +389,7 @@ def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
         if _contains_word(t, preset):
             return "color", preset, _extract_targets(t)
 
-    return "toggle", None, _extract_targets(t)
+    return "unknown", None, []
 
 # ------- executor -------
 def _ensure_targets(targets: List[str]) -> List[str]:

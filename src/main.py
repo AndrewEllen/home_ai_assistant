@@ -11,7 +11,7 @@ from modules.smart_devices.interpret_smart_command import execute_command
 #Hardcoded for now, hopefully in future can be taken from microphone location
 ROOM_COMMAND_GIVEN = "office"
 
-WAKE_PHRASE = "hey sharon"
+WAKE_PHRASE = "hey jarvis"
 _last_command_time = 0
 _WAKE_WINDOW = 3  # seconds
 
@@ -95,4 +95,5 @@ def main_small():
 
 
 if __name__ == "__main__":
-    main_small()
+    main()
+    #main_small()
