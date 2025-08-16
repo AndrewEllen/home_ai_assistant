@@ -17,7 +17,7 @@ _WAKE_WINDOW = 3  # seconds
 
 def on_voice_command(text: str):
     global _last_command_time
-    cleaned = re.sub(r"[^\w\s]", "", text).lower()
+    cleaned = re.sub(r"[.,]", "", text).lower()
     now = time.time()
 
     # inside wake window → run directly
@@ -46,7 +46,7 @@ def on_voice_command(text: str):
 
 
 def main():
-    recognized_faces = []
+    #recognized_faces = []
 
     mic_index = 1
     try:
@@ -66,14 +66,14 @@ def main():
         model_name="large-v3"  # change to medium.en if you want faster but slightly less accurate
     )
 
-    face_thread = start_face_recognition(recognized_faces)
+    #face_thread = start_face_recognition(recognized_faces)
     start_console_command_listener(room=ROOM_COMMAND_GIVEN)
 
     print("AI Assistant started. Waiting for recognitions...")
 
     try:
         while True:
-            process_recognitions(recognized_faces)
+            #process_recognitions(recognized_faces)
             time.sleep(0.1)
     except KeyboardInterrupt:
         print("Stopping...")
@@ -81,8 +81,8 @@ def main():
         print("Stopped")
         voice_thread.stop()
         voice_thread.join()
-        face_thread.stop()
-        face_thread.join()
+        #face_thread.stop()
+        #face_thread.join()
 
 
 def main_small():

@@ -1,5 +1,5 @@
 # modules/smart_devices/interpret_smart_command.py
-import json, re, threading, difflib
+import json, re, threading, difflib, unicodedata
 
 from modules.weather.weather_api import get_weather
 from modules.voice_synth.voice_synth import speak_async
@@ -7,6 +7,7 @@ from modules.maths.calculator import try_calculate
 from modules.time.date_and_time import build_time_message
 from modules.time.control_timer import handle_timer_intent, TIMER
 from modules.google_search.search_for_answers import answer_with_search
+from modules.application_control.open_games import launch_game_by_name
 
 
 from pathlib import Path
@@ -52,6 +53,7 @@ for d in _DEVICES:
 _DEVICE_TOKENS = {name: set(re.sub(r"[^a-z0-9 ]+", "", name.lower()).split()) for name in _DEVICE_NAMES}
 
 # ------- vocab -------
+_LAUNCH_WORDS = {"launch", "open up", "start up", "boot up"}
 _WEATHER_WORDS = {"weather", "forecast", "temperature", "rain", "snow", "wind"}
 _MATH_WORDS = {
     # basic operations
@@ -67,7 +69,7 @@ _MATH_WORDS = {
 }
 _MATH_SYM_RE = re.compile(r"\d+\s*(?:[\+\-\*/^]|percent)", re.I)
 _TIME_DATE_WORDS = {"time", "date", "day", "month", "year", "today", "now"}
-_SEARCH_START = {"who", "what", "when", "where", "why", "how"}
+_SEARCH_START = {"who", "search", "what", "when", "where", "why", "how"}
 _PLACE_RE = re.compile(r"\b(?:in|at|for)\s+([a-z0-9 ,.'-]{2,})$", re.I)
 _ON_WORDS = {"on", "enable", "start", "power on"}
 _OFF_WORDS = {"off", "disable", "power off", "shutdown"}
@@ -245,7 +247,22 @@ def _all_room_devices(room: Optional[str]) -> List[str]:
     return [n for n in _DEVICE_NAMES if r in n.lower()]
 
 
-_CLAUSE_SPLIT_RE = re.compile(r"\b(?:and then|then|and|,|;)\b", re.I)
+_CLAUSE_SPLIT_RE = re.compile(r"\b(?:and then|then|and)\b|[,;]", re.I)
+
+def _strip_edge_punct(s: str) -> str:
+    i, j = 0, len(s)
+    def is_punct(ch): return unicodedata.category(ch).startswith("P")
+    while i < j and (s[i].isspace() or is_punct(s[i])): i += 1
+    while j > i and (s[j-1].isspace() or is_punct(s[j-1])): j -= 1
+    return s[i:j]
+
+def extract_game_query(text: str) -> str:
+    low = text.lower()
+    # find first launch phrase anywhere; keep hyphens in the remainder
+    m = re.search(r"\b(?:open up|start up|boot up|launch)\b", low)
+    if not m:
+        return _strip_edge_punct(text)
+    return _strip_edge_punct(text[m.end():])
 
 # ------- executor helpers -------
 def _do_and_label(fn, label: str) -> str:
@@ -260,6 +277,12 @@ def _split_clauses(text: str) -> List[str]:
     return [c.strip() for c in _CLAUSE_SPLIT_RE.split(text) if c.strip()]
 
 def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
+
+    if action == "launch_app":
+        q = (value or "").strip()
+        if not q:
+            return "No game specified."
+        return launch_game_by_name(q)
 
     if action == "weather":
         place = value if isinstance(value, str) and value.strip() else None
@@ -328,8 +351,15 @@ def _run_action(action: str, value: Optional[str], targets: List[str]) -> str:
 
 # ------- parser -------
 def parse_command(text: str) -> Tuple[str, Optional[str], List[str]]:
+    if re.search(r"\b(?:open up|start up|boot up|launch)\b", text.lower()):
+        return "launch_app", extract_game_query(text), []
     t = _normalize(text)
     targets_guess = _extract_targets(t)
+
+    # app launch queries
+    if any(p in t for p in _LAUNCH_WORDS):
+        query = extract_game_query(text)
+        return "launch_app", query, []
 
     # weather queries
     if any(_contains_word(t, w) for w in _WEATHER_WORDS):
@@ -411,7 +441,7 @@ def execute_command(text: str, room: str | None = None) -> str:
     action, value, targets = parse_command(text)
 
     # Never split for these intents
-    if action in {"time", "weather", "math"}:
+    if action in {"time", "weather", "math", "launch_app"}:
         return _run_action(action, value, targets or [])
 
     # Multi-clause handling
