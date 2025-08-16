@@ -234,3 +234,4 @@ devices.json
 tinytuya.json
 tuya-raw.json
 snapshot.json
+src/assets/*
