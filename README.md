@@ -1,5 +1,9 @@
 # Setup
 
+** README is slightly outdated and needs updated. Some packages may be missing from requirements but I've done my best to make sure they are there. **
+Use the server_client.cfg to switch mode. The client is designed for windows currently. The server can run on Mac and Windows and should run on Linux. Some code may need slight tweaks like ip addreses and folder locations. This will be changed in future with configs.
+
+
 To install dependencies run in order:
 
 python -m venv .venv

@@ -228,6 +228,8 @@ models/**/*.npy
 models/**/*.npz
 models/**/*.json
 temp_audio/*.wav
+src/client/modules/voice_synth/temp_audio/*.wav
+
 
 # tuya
 devices.json
@@ -235,3 +237,9 @@ tinytuya.json
 tuya-raw.json
 snapshot.json
 src/assets/*
+
+# other
+!server_client.cfg
+src/server/assets/*
+src/client/assets/*
+structure.txt
